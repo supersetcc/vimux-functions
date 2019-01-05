@@ -1,16 +1,18 @@
 " Backwards compatibility
-command! RunAllNoseTests :call RunNoseTestBuffer()
-command! RunFocusedNoseTests :call RunNoseTestFocused()
 
-command! RunNoseTest :call _run_nosetests("")
-command! RunNoseTestBuffer :call RunNoseTestBuffer()
-command! RunNoseTestFocused :call RunNoseTestFocused()
+" for python
+command! RunNoseTest :call RunNoseTest("")
+command! RunNoseTestWithCoverage :call RunNoseTest("coverage")
+command! RunNoseTestFocused :call RunNoseTestFocused("")
+command! RunNoseTestFocusedWithCoverage :call RunNoseTestFocused("coverage")
+command! RunPythonFile :call RunPythonFile()
 
-function! RunNoseTestBuffer()
-  call _run_nosetests(expand("%"))
-endfunction
+" for go
+command! RunGoFile :call RunGoFile()
+command! GoBuildAndRunFile :call GoBuildAndRunFile()
 
-function! RunNoseTestFocused()
+" python part
+function! RunNoseTestFocused(coverage)
   let test_class = _nose_test_search("class ")
   let test_name = _nose_test_search("def test_")
 
@@ -19,13 +21,43 @@ function! RunNoseTestFocused()
     return
   endif
 
-  call _run_nosetests(expand("%") . ":" . test_class . "." . test_name)
+  if a:coverage == "coverage"
+      " https://nose.readthedocs.io/en/latest/plugins/cover.html
+      let target = _nose_test_search_after_colon("coverage:")
+      call _run_nosetests("-s --nologcapture --cover-erase --with-coverage --cover-package " . target . " ". expand("%") . ":" . test_class . "." . test_name)
+  else
+      call _run_nosetests("-s --nologcapture " . expand("%") . ":" . test_class . "." . test_name)
+  endif
+endfunction
+
+function! RunNoseTest(coverage)
+  if a:coverage == "coverage"
+      let target = _nose_test_search_after_colon("coverage:")
+      " https://nose.readthedocs.io/en/latest/plugins/cover.html
+      call _run_nosetests("-s --nologcapture --cover-erase --with-coverage --cover-package " . target . " ". expand("%"))
+  else
+      call _run_nosetests("-s --nologcapture " . expand("%"))
+  endif
+endfunction
+
+function! RunPythonFile()
+  call VimuxRunCommand(_virtualenv() . "python " . expand("%"))
+endfunction
+
+function! _nose_test_search_after_colon(fragment)
+  let line_num = search(a:fragment, "bs")
+  if line_num > 0
+    ''  " what this is for?!
+    return split(getline(line_num), ":")[1]
+  else
+    return ""
+  endif
 endfunction
 
 function! _nose_test_search(fragment)
   let line_num = search(a:fragment, "bs")
   if line_num > 0
-    ''
+    ''  " what this is for?!
     return split(split(getline(line_num), " ")[1], "(")[0]
   else
     return ""
@@ -42,4 +74,14 @@ function! _virtualenv()
   else
     return ""
   end
+endfunction
+
+
+" go part
+function! GoBuildAndRunFile()
+  call VimuxRunCommand(_virtualenv() . "go build; ./" . expand("%:p:h:t"))
+endfunction
+
+function! RunGoFile()
+  call VimuxRunCommand(_virtualenv() . "go run " . expand("%"))
 endfunction
